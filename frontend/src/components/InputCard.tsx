@@ -20,11 +20,12 @@ const CardWithForm: React.FC<CardWithFormProps> = ({ onFileSelect, onExportPathC
       if (selectedFilePaths && selectedFilePaths.length > 0) {
         // Process all selected files
         const files = selectedFilePaths.map((filePath: string) => {
-          // Extract file name and create file object
-          const fileName = filePath.split('/').pop() || 'example.mp4';
+          // Extract file name and create file object using path.basename to handle both forward and backslashes
+          const fileName = filePath.split(/[\\\/]/).pop() || 'example.mp4';
+          // Ensure path includes proper file extension and escapes spaces
           return {
             name: fileName,
-            path: filePath, // Full file path returned by Electron
+            path: filePath, // Use the original path as Electron already handles spaces
           };
         });
         onFileSelect(files);

@@ -105,7 +105,32 @@ const runAutoEditor = async (command: string) => {
       for (let i = 0; i < selectedFile.length; i++) {
         const file = selectedFile[i];
         const singleFileCommand = `auto_editor "${file.path}" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
-        const commandArgs = singleFileCommand.split(' ');
+        // Parse the command string to preserve quoted paths
+        const commandArgs = [];
+        let currentArg = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < singleFileCommand.length; i++) {
+          const char = singleFileCommand[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+            currentArg += char; // Keep the quotes in the argument
+          } else if (char === ' ' && !inQuotes) {
+            if (currentArg) {
+              commandArgs.push(currentArg);
+              currentArg = '';
+            }
+          } else {
+            currentArg += char;
+          }
+        }
+        
+        if (currentArg) {
+          commandArgs.push(currentArg);
+        }
+        
+        console.log('Parsed command args for file:', file.name, commandArgs);
         
         setAlert({ message: `Processing file ${i+1}/${selectedFile.length}: ${file.name}`, type: 'normal' });
         
@@ -134,7 +159,32 @@ const runAutoEditor = async (command: string) => {
     
     // Process single file
     console.log('Running command:', command);
-    const commandArgs = command.split(' '); // Split the command string into arguments
+    // Parse the command string to preserve quoted paths
+    const commandArgs = [];
+    let currentArg = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < command.length; i++) {
+      const char = command[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+        currentArg += char; // Keep the quotes in the argument
+      } else if (char === ' ' && !inQuotes) {
+        if (currentArg) {
+          commandArgs.push(currentArg);
+          currentArg = '';
+        }
+      } else {
+        currentArg += char;
+      }
+    }
+    
+    if (currentArg) {
+      commandArgs.push(currentArg);
+    }
+    
+    console.log('Parsed command args:', commandArgs);
     const result = await window.electron.runCommand(commandArgs); // Run the command
 
     console.log('Command executed with result:', result);
