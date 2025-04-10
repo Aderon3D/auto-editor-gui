@@ -3,7 +3,7 @@ import CardWithForm from './InputCard';
 import CardWithArguments from './ArgumentsCard';
 
 interface ExportXMLProps {
-  onFileSelect: (file: { name: string; path: string } | null) => void;
+  onFileSelect: (files: { name: string; path: string }[] | null) => void;
   onCommandChange: (command: string) => void;
   onExportPathChange: (path: string) => void;
   setAlert: React.Dispatch<React.SetStateAction<{ message: string, type: 'normal' | 'error' | 'success' | null } | null>>; // Prop to set alert
@@ -16,7 +16,7 @@ interface CommandResult {
 
 
 const ExportXML: React.FC<ExportXMLProps> = ({ onFileSelect, onCommandChange, onExportPathChange, setAlert  }) => {
-  const [selectedFile, setSelectedFile] = useState<{ name: string; path: string } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{ name: string; path: string }[] | null>(null);
   const [exportAs, setExportAs] = useState<string>('premiere');
   const [exportPath, setExportPath] = useState<string>('');
   const [loudness, setLoudness] = useState<number>(-19);
@@ -38,16 +38,26 @@ const ExportXML: React.FC<ExportXMLProps> = ({ onFileSelect, onCommandChange, on
   }, [onExportPathChange]);
 
 const buildCommand = (): string => {
-  const inputFile = selectedFile?.path ?? "example.mp4";
-  const quotedInputFile = `"${inputFile}"`; // Ensure the path is quoted
-  return `auto_editor ${quotedInputFile} --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
+  // If no files are selected, use example.mp4
+  if (!selectedFile || selectedFile.length === 0) {
+    return `auto_editor "example.mp4" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
+  }
+  
+  // If only one file is selected, build a single command
+  if (selectedFile.length === 1) {
+    const quotedInputFile = `"${selectedFile[0].path}"`; // Ensure the path is quoted
+    return `auto_editor ${quotedInputFile} --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
+  }
+  
+  // If multiple files are selected, show the number of files in the command
+  return `auto_editor [${selectedFile.length} files selected] --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
 };
 
 
   // Handle file selection
-  const handleFileSelect = (file: { name: string; path: string } | null) => {
-    setSelectedFile(file);
-    onFileSelect(file);
+  const handleFileSelect = (files: { name: string; path: string }[] | null) => {
+    setSelectedFile(files);
+    onFileSelect(files);
     const command = buildCommand();
     onCommandChange(command);
   };
@@ -64,7 +74,7 @@ const buildCommand = (): string => {
 
   const handleApply = (loud: number, marg: number) => {
     // Directly use loud and marg for building the command
-    const command = `auto_editor "${selectedFile?.path ?? 'example.mp4'}" --export ${exportAs} --edit audio:${loud}dB --margin ${marg}s`;
+    const command = `auto_editor "${selectedFile?.[0]?.path ?? 'example.mp4'}" --export ${exportAs} --edit audio:${loud}dB --margin ${marg}s`;
     setLoudness(loud); // Update state
     setMargin(marg);   // Update state
     onCommandChange(command);
@@ -78,12 +88,51 @@ const buildCommand = (): string => {
 
 
 const runAutoEditor = async (command: string) => {
-  if (!selectedFile) {
-    setAlert({ message: 'No file selected for processing.', type: 'error' });
+  if (!selectedFile || selectedFile.length === 0) {
+    setAlert({ message: 'No files selected for processing.', type: 'error' });
     return;
   }
 
   try {
+    // If multiple files are selected, process them sequentially
+    if (selectedFile.length > 1) {
+      setAlert({ message: `Processing ${selectedFile.length} files...`, type: 'normal' });
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Process each file sequentially
+      for (let i = 0; i < selectedFile.length; i++) {
+        const file = selectedFile[i];
+        const singleFileCommand = `auto_editor "${file.path}" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
+        const commandArgs = singleFileCommand.split(' ');
+        
+        setAlert({ message: `Processing file ${i+1}/${selectedFile.length}: ${file.name}`, type: 'normal' });
+        
+        try {
+          const result = await window.electron.runCommand(commandArgs);
+          if (typeof result === 'string' && result.includes('Process completed successfully with code 0')) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error(`Error processing file ${file.name}:`, error);
+          failCount++;
+        }
+      }
+      
+      // Show summary of processing results
+      if (failCount === 0) {
+        setAlert({ message: `All ${successCount} files processed successfully!`, type: 'success' });
+      } else {
+        setAlert({ message: `Processed ${successCount} files successfully, ${failCount} files failed.`, type: 'error' });
+      }
+      
+      return;
+    }
+    
+    // Process single file
     console.log('Running command:', command);
     const commandArgs = command.split(' '); // Split the command string into arguments
     const result = await window.electron.runCommand(commandArgs); // Run the command

@@ -83,7 +83,7 @@ function NavigationMenuDemo() {
               <ListItem href="/docs" title="Tutorial">
                 Watch our tutorial video to learn how to use the AutoEditor GUI.
               </ListItem>
-              <ListItem href="https://github.com/sashminea/auto-editor-gui" target = "_blank" title="Contribute">
+              <ListItem href="https://github.com/Aderon3D/auto-editor-gui" target = "_blank" title="Contribute">
                 Got a great idea? Feel free to send us a pull request!
               </ListItem>
               <ListItem href="https://www.linkedin.com/in/sashminadhikari/" target = "_blank" title="Contact us" >
@@ -109,7 +109,7 @@ function NavigationMenuDemo() {
           </NavigationMenuContent>
         </NavigationMenuItem> */}
         {/* <NavigationMenuItem>
-            <a href="https://github.com/sashminea/auto-editor-gui" target="_blank">
+            <a href="https://github.com/Aderon3D/auto-editor-gui" target="_blank">
             <NavigationMenuLink className={navigationMenuTriggerStyle()}>
               Contribute
             </NavigationMenuLink>

@@ -11,7 +11,7 @@ interface SelectedFile {
 }
 
 const Layout: React.FC = () => {
-  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [selectedFile, setSelectedFile] = useState<SelectedFile[] | null>(null);
   const [exportPath, setExportPath] = useState<string>('\\output');
   const [exportAs, setExportAs] = useState<string>('premiere');
   const [loudness, setLoudness] = useState<number>(-19);

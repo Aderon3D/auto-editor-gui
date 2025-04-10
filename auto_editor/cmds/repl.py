@@ -17,8 +17,26 @@ from auto_editor.utils.log import Log
 from auto_editor.utils.types import frame_rate
 from auto_editor.vanparse import ArgumentParser
 
+# Add history file support
+import os
+from pathlib import Path
+
+# In the main function, after the readline import:
 try:
-    import readline  # noqa
+    import readline
+    
+    # Set up history file
+    history_file = os.path.join(Path.home(), '.auto_editor_history')
+    try:
+        readline.read_history_file(history_file)
+        # Set history file size
+        readline.set_history_length(1000)
+    except FileNotFoundError:
+        pass
+        
+    # Save history on exit
+    import atexit
+    atexit.register(readline.write_history_file, history_file)
 except ImportError:
     pass
 

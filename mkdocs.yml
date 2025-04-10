@@ -1,0 +1,36 @@
+site_name: Auto-Editor GUI
+site_description: Graphical interface for the Auto-Editor CLI tool
+repo_url: https://github.com/Aderon3D/auto-editor-gui
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Docker Setup: getting-started/docker.md
+  - User Guide:
+      - Interface Overview: user-guide/interface.md
+      - Video Editing: user-guide/editing.md
+  - API Reference:
+      - Backend API: api/backend.md
+      - Frontend Components: api/frontend.md
+  - Development:
+      - Contributing: development/contributing.md
+      - Architecture: development/architecture.md
+  - Blog:
+      - blog/index.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true

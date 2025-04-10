@@ -3,33 +3,37 @@ import  {useState} from "react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import StringInput from "./StringInput";  // Assuming StringInput is the only other required component
+import StringInput from "./StringInput";
 
 interface CardWithFormProps {
-  onFileSelect: (file: { name: string; path: string }) => void;
+  onFileSelect: (files: { name: string; path: string }[]) => void;
   onExportPathChange: (path: string) => void;
   onExportAsChange: (exportAs: string) => void;
-  selectedFile: { name: string; path: string } | null;  // Added prop for selected file
+  selectedFile: { name: string; path: string }[] | null;  // Updated to array for multiple files
 }
 
 const CardWithForm: React.FC<CardWithFormProps> = ({ onFileSelect, onExportPathChange, onExportAsChange, selectedFile  }) => {
   const handleFileChange = async () => {
     try {
       // Call Electron's file dialog API to open the file selection dialog
-      const selectedFilePath = await window.electron.openFileDialog();
-      if (selectedFilePath) {
-        // Extract file name and pass full path to parent component
-        const fileName = selectedFilePath.split('/').pop() || 'example.mp4';
-        onFileSelect({
-          name: fileName,
-          path: selectedFilePath, // Full file path returned by Electron
+      const selectedFilePaths = await window.electron.openFileDialog();
+      if (selectedFilePaths && selectedFilePaths.length > 0) {
+        // Process all selected files
+        const files = selectedFilePaths.map((filePath: string) => {
+          // Extract file name and create file object
+          const fileName = filePath.split('/').pop() || 'example.mp4';
+          return {
+            name: fileName,
+            path: filePath, // Full file path returned by Electron
+          };
         });
+        onFileSelect(files);
       } else {
         // Handle case where no file is selected
-        onFileSelect({
+        onFileSelect([{
           name: 'example.mp4',
           path: 'example.mp4',
-        });
+        }]);
       }
     } catch (error) {
       console.error('File selection failed:', error);
@@ -58,13 +62,23 @@ const CardWithForm: React.FC<CardWithFormProps> = ({ onFileSelect, onExportPathC
 return (
     <Card className="w-[350px]">
       <CardHeader>
-        <CardTitle>Choose a video file</CardTitle>
+        <CardTitle>Choose video file(s)</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid w-full items-center gap-4">
           <div className="flex flex-col space-y-1.5">
-            <button onClick={handleFileChange} className="btn">Select File</button>
+            <button onClick={handleFileChange} className="btn">Select Files</button>
           </div>
+          {selectedFile && selectedFile.length > 0 && (
+            <div className="flex flex-col space-y-1.5">
+              <Label>Selected Files ({selectedFile.length})</Label>
+              <div className="max-h-[100px] overflow-y-auto text-sm">
+                {selectedFile.map((file, index) => (
+                  <div key={index} className="text-xs truncate">{file.name}</div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col space-y-1.5">
                   <div style={{ pointerEvents: 'none'}}>
             <StringInput 

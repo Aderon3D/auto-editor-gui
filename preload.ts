@@ -8,7 +8,7 @@ interface CommandResult {
 interface ElectronAPI {
   runCommand: (args: string[]) => Promise<CommandResult | string>;
   getAppDataPath: () => Promise<string>;
-  openFileDialog: () => Promise<string>;
+  openFileDialog: () => Promise<string[]>;
   openFolderDialog: () => Promise<string>;
   onCommandOutput: (callback: (output: string) => void) => void;
 }
@@ -33,7 +33,7 @@ contextBridge.exposeInMainWorld('electron', {
     }
   },
 
-  openFileDialog: async (): Promise<string> => {
+  openFileDialog: async (): Promise<string[]> => {
     try {
       return await ipcRenderer.invoke('open-file-dialog');
     } catch (error) {

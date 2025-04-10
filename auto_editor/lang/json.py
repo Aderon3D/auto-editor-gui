@@ -299,3 +299,14 @@ def dump(
         if indent is not None:
             file.write(f"\n{' ' * (level - indent)}")
         file.write("}")
+
+
+# Replace custom JSON parser with standard library
+import json
+
+def parse_json(text: str) -> Any:
+    """Parse JSON text using Python's built-in json module."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise MyError(f"JSON parsing error: {e}")

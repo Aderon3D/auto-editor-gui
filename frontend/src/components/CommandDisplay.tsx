@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface CommandDisplayProps {
-  selectedFile: { name: string; path: string } | null;
+  selectedFile: { name: string; path: string }[] | null;
   exportPath: string;
   exportAs: string;
   loudness: number;
@@ -34,7 +34,7 @@ const CommandDisplay: React.FC<CommandDisplayProps> = ({
   }, []);
 
   const outputFile = exportPath || `${appDataPath}\\AutoEditorOutput`; 
-  const inputFilePath = selectedFile?.path || 'example.mp4';
+  const inputFilePath = selectedFile?.[0]?.path || 'example.mp4';
 
   return (
     <Card className="border p-4 rounded-md gap-2 flex flex-col">

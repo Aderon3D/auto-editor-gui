@@ -61,7 +61,7 @@ Ensure you have the following installed:
 1. Clone this repository:
 
    ```bash
-   git clone https://github.com/sashminea/auto-editor-gui.git
+   git clone https://github.com/Aderon3D/auto-editor-gui.git
    cd auto-editor-gui
    ```
 

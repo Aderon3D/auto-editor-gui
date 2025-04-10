@@ -127,27 +127,31 @@ ipcMain.handle('get-appdata-path', () => {
 
 
 
-ipcMain.handle('run-command', async (_event, args) => {
-  const autoEditorFolder = path.join(__dirname, 'dist/auto_editor');  // Path to your local auto_editor module
-  const inputFile = args[0];  // File path as input
+ipcMain.handle('run-command', async (_event, args: string[]) => {
+  const autoEditorFolder = path.join(__dirname, 'dist/auto_editor');
   
-  // Extract the selected export format from the args (assuming it's passed as the 2nd argument)
-    const exportFormat = args.find((arg: string) => arg.startsWith('--export'))?.split('=')[1] || 'mp4'; // Default to 'mp4'
+  // Extract the actual file path from the first argument
+  // The first argument from frontend is in format: auto_editor "filepath"
+  let inputFile = args[0];
+  if (inputFile.startsWith('auto_editor')) {
+    // Remove 'auto_editor' prefix and trim any whitespace
+    inputFile = args[1]?.replace(/^"|"$/g, '') || '';
+  } else {
+    // If format is different, just use the first argument
+    inputFile = inputFile.replace(/^"|"$/g, '');
+  }
+  
+  const exportFormat = args.find((arg: string) => arg.startsWith('--export'))?.split('=')[1] || 'mp4';
 
-  
-  // Define the output folder path in the root directory
   const outputFolderPath = path.join(__dirname, '..', 'output');
   
-  // Ensure the 'output' folder exists, create it if necessary
   if (!fs.existsSync(outputFolderPath)) {
     fs.mkdirSync(outputFolderPath);
     console.log(`Output folder created at: ${outputFolderPath}`);
   }
 
-  // Get the file name without the extension
   const inputFileName = path.basename(inputFile, path.extname(inputFile));
   
-  // Define a mapping between export formats and extensions
   const formatExtensions: { [key: string]: string } = {
     premiere: '.xml',
     'resolve-fcp7': '.xml',
@@ -156,30 +160,54 @@ ipcMain.handle('run-command', async (_event, args) => {
     shotcut: '.mlt',
     json: '.json',
     timeline: '.timeline',
-    audio: '.mp3', // or .wav depending on your audio export settings
+    audio: '.mp3',
     'clip-sequence': '.clip-sequence',
-    mp4: '.mp4',  // Default to mp4
+    mp4: '.mp4',
   };
 
-  // Get the correct file extension for the selected format
-  const fileExtension = formatExtensions[exportFormat] || '.mp4'; // Default to mp4 if not found
+  const fileExtension = formatExtensions[exportFormat] || '.mp4';
 
-  // Create the output file path with the new extension
-  const outputFilePath = path.join(outputFolderPath, `${inputFileName}${fileExtension}`);
+  // Fix the output filename to avoid duplication of 'auto_editor' in the name
+  // If the inputFileName already contains 'auto_editor', don't add it again
+  const outputFileName = inputFileName.includes('auto_editor') ? 
+    inputFileName : 
+    `${inputFileName}_edited`;
+    
+  const outputFilePath = path.join(outputFolderPath, `${outputFileName}${fileExtension}`);
 
-  // Add --output argument pointing to the full output file path
   const command = [
-    getPythonPath(),  // This gets the path to the Python executable
-    '-m',  // Running the auto_editor module
-    inputFile,  // File to process
-    ...args.slice(1),  // Additional arguments for the Auto-Editor
-    '--output', `"${outputFilePath}"`  // Specify the output file path
+    getPythonPath(),
+    '-m',
+    'auto_editor',
+    inputFile,
+    // Skip the first two arguments if they were in the format 'auto_editor "filepath"'
+    // Otherwise just skip the first argument
+    ...args.slice(args[0].startsWith('auto_editor') ? 2 : 1)
+      .filter(arg => !arg.startsWith('--output') && arg !== 'auto_editor')
+      .map(arg => arg.replace(/^"|"$/g, '')),
+    '--output',
+    outputFilePath
   ];
+
+  // When using spawn with shell:true, we need to properly quote the entire command
+  const quotedCommand = command.map(arg => {
+    // If the argument contains spaces, wrap it in quotes
+    return arg.includes(' ') ? `"${arg}"` : arg;
+  });
+
+  // Use the quoted command array when spawning the process
+  console.log("Executing command:", quotedCommand.join(' '));
+  
+  // Log the input file to debug
+  console.log("Input file path:", inputFile);
+  
+  // Log the input file to debug
+  console.log("Input file:", inputFile);
 
   console.log("Executing command:", command.join(' '));
 
-  return new Promise((resolve, reject) => {
-    const process = spawn(command[0], command.slice(1), { shell: true });
+  return new Promise<string>((resolve, reject) => {
+    const process = spawn(quotedCommand[0], quotedCommand.slice(1), { shell: true });
 
     process.stdout.on('data', (data) => {
       console.log(`stdout: ${data}`);
@@ -206,32 +234,33 @@ ipcMain.handle('run-command', async (_event, args) => {
 });
 
 
-
-
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog({
-    properties: ['openFile'],
+    properties: ['openFile', 'multiSelections'],
     filters: [{ name: 'Videos', extensions: ['mp4', 'avi', 'mov', 'mkv'] }],
   });
 
   if (result.filePaths && result.filePaths.length > 0) {
-    const selectedFilePath = result.filePaths[0];
-
     const importFolderPath = path.join(__dirname, '..', 'import');  // Root-level 'import' folder
     if (!fs.existsSync(importFolderPath)) {
       fs.mkdirSync(importFolderPath, { recursive: true });
       console.log(`Import folder created at: ${importFolderPath}`);
     }
 
-    const fileName = path.basename(selectedFilePath);
-    const newFilePath = path.join(importFolderPath, fileName);
+    // Process all selected files
+    const newFilePaths = result.filePaths.map(selectedFilePath => {
+      const fileName = path.basename(selectedFilePath);
+      const newFilePath = path.join(importFolderPath, fileName);
 
-    fs.copyFileSync(selectedFilePath, newFilePath);  // This moves the file
-    console.log(`File moved to: ${newFilePath}`);
+      fs.copyFileSync(selectedFilePath, newFilePath);
+      console.log(`File moved to: ${newFilePath}`);
+      
+      return newFilePath;
+    });
     
-    return newFilePath;  // Return the new file path in the import folder
+    return newFilePaths;  // Return array of new file paths in the import folder
   } else {
-    throw new Error('No file selected');
+    throw new Error('No files selected');
   }
 });
 
