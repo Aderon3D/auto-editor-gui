@@ -6,7 +6,7 @@ interface ExportXMLProps {
   onFileSelect: (files: { name: string; path: string }[] | null) => void;
   onCommandChange: (command: string) => void;
   onExportPathChange: (path: string) => void;
-  setAlert: React.Dispatch<React.SetStateAction<{ message: string, type: 'normal' | 'error' | 'success' | null } | null>>; // Prop to set alert
+  setAlert: React.Dispatch<React.SetStateAction<{ message: string, type: 'normal' | 'error' | 'success' | null } | null>>;  // Prop to set alert
 }
 
 interface CommandResult {
@@ -21,6 +21,10 @@ const ExportXML: React.FC<ExportXMLProps> = ({ onFileSelect, onCommandChange, on
   const [exportPath, setExportPath] = useState<string>('');
   const [loudness, setLoudness] = useState<number>(-19);
   const [margin, setMargin] = useState<number>(0);
+  const [previewStats, setPreviewStats] = useState<{originalDuration?: string, newDuration?: string, percentCut?: number} | null>(null);
+  // Add state for individual video statistics
+  const [videoStats, setVideoStats] = useState<{name: string, originalDuration?: string, newDuration?: string, percentCut?: number}[]>([]);
+  
 
   // Fetch the AppData path when the component mounts
   useEffect(() => {
@@ -100,11 +104,13 @@ const runAutoEditor = async (command: string) => {
       
       let successCount = 0;
       let failCount = 0;
+      const newVideoStats: {name: string, originalDuration?: string, newDuration?: string, percentCut?: number}[] = [];
       
       // Process each file sequentially
       for (let i = 0; i < selectedFile.length; i++) {
         const file = selectedFile[i];
-        const singleFileCommand = `auto_editor "${file.path}" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s`;
+        // Add --stats flag to get statistics for each file
+        const singleFileCommand = `auto_editor "${file.path}" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s --stats`;
         // Parse the command string to preserve quoted paths
         const commandArgs = [];
         let currentArg = '';
@@ -138,6 +144,19 @@ const runAutoEditor = async (command: string) => {
           const result = await window.electron.runCommand(commandArgs);
           if (typeof result === 'string' && result.includes('Process completed successfully with code 0')) {
             successCount++;
+            
+            // Extract statistics for this file
+            const originalMatch = result.match(/Original duration: ([\d:\.]+)/);
+            const newMatch = result.match(/New duration: ([\d:\.]+)/);
+            const percentMatch = result.match(/Percent cut: ([\d\.]+)%/);
+            
+            // Add stats for this file
+            newVideoStats.push({
+              name: file.name,
+              originalDuration: originalMatch ? originalMatch[1] : undefined,
+              newDuration: newMatch ? newMatch[1] : undefined,
+              percentCut: percentMatch ? parseFloat(percentMatch[1]) : undefined
+            });
           } else {
             failCount++;
           }
@@ -146,6 +165,9 @@ const runAutoEditor = async (command: string) => {
           failCount++;
         }
       }
+      
+      // Update the video stats state with all processed files
+      setVideoStats(newVideoStats);
       
       // Show summary of processing results
       if (failCount === 0) {
@@ -159,13 +181,16 @@ const runAutoEditor = async (command: string) => {
     
     // Process single file
     console.log('Running command:', command);
+    // Modify command to include stats flag
+    const singleFileCommand = `auto_editor "${selectedFile[0].path}" --export ${exportAs} --edit audio:${loudness}dB --margin ${margin}s --stats`;
+    
     // Parse the command string to preserve quoted paths
     const commandArgs = [];
     let currentArg = '';
     let inQuotes = false;
     
-    for (let i = 0; i < command.length; i++) {
-      const char = command[i];
+    for (let i = 0; i < singleFileCommand.length; i++) {
+      const char = singleFileCommand[i];
       
       if (char === '"') {
         inQuotes = !inQuotes;
@@ -193,6 +218,22 @@ const runAutoEditor = async (command: string) => {
     if (typeof result === 'string') {
       // Check for the success message in the result
       if (result.includes('Process completed successfully with code 0')) {
+        // Extract statistics for this file
+        const originalMatch = result.match(/Original duration: ([\d:\.]+)/);
+        const newMatch = result.match(/New duration: ([\d:\.]+)/);
+        const percentMatch = result.match(/Percent cut: ([\d\.]+)%/);
+        
+        // Create stats for this file
+        const newStats = {
+          name: selectedFile[0].name,
+          originalDuration: originalMatch ? originalMatch[1] : undefined,
+          newDuration: newMatch ? newMatch[1] : undefined,
+          percentCut: percentMatch ? parseFloat(percentMatch[1]) : undefined
+        };
+        
+        // Update the video stats state with this file
+        setVideoStats([newStats]);
+        
         setAlert({ message: 'File processed successfully!', type: 'success' });
       } else {
         // If the result includes any error message, show error alert
@@ -217,6 +258,77 @@ const runAutoEditor = async (command: string) => {
 
 
 
+  // Add a new function to generate preview
+  const handlePreview = async (loud: number, marg: number) => {
+    if (!selectedFile || selectedFile.length === 0) {
+      setAlert({ message: 'No files selected for preview.', type: 'error' });
+      return;
+    }
+
+    setAlert({ message: 'Generating preview...', type: 'normal' });
+    
+    try {
+      // Use the first file for preview if multiple are selected
+      const file = selectedFile[0];
+      // Add --stats flag to the command to get statistics without processing the full video
+      const previewCommand = `auto_editor "${file.path}" --export ${exportAs} --edit audio:${loud}dB --margin ${marg}s --stats`;
+      
+      // Parse the command to preserve quoted paths
+      const commandArgs = [];
+      let currentArg = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < previewCommand.length; i++) {
+        const char = previewCommand[i];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+          currentArg += char;
+        } else if (char === ' ' && !inQuotes) {
+          if (currentArg) {
+            commandArgs.push(currentArg);
+            currentArg = '';
+          }
+        } else {
+          currentArg += char;
+        }
+      }
+      
+      if (currentArg) {
+        commandArgs.push(currentArg);
+      }
+      
+      console.log('Running preview command:', commandArgs);
+      
+      const result = await window.electron.runCommand(commandArgs);
+      
+      // Parse the result to extract statistics
+      // This is a simplified example - you'll need to adapt based on actual output format
+      if (typeof result === 'string') {
+        // Example parsing - adjust based on actual output format
+        const originalMatch = result.match(/Original duration: ([\d:\.]+)/);
+        const newMatch = result.match(/New duration: ([\d:\.]+)/);
+        const percentMatch = result.match(/Percent cut: ([\d\.]+)%/);
+        
+        setPreviewStats({
+          originalDuration: originalMatch ? originalMatch[1] : undefined,
+          newDuration: newMatch ? newMatch[1] : undefined,
+          percentCut: percentMatch ? parseFloat(percentMatch[1]) : undefined
+        });
+        
+        setAlert({ 
+          message: `Preview generated. ${percentMatch ? `Approximately ${percentMatch[1]}% will be cut.` : ''}`, 
+          type: 'success' 
+        });
+      } else {
+        setAlert({ message: 'Failed to generate preview.', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      setAlert({ message: 'Error generating preview.', type: 'error' });
+    }
+  };
+
   return (
     <div>
       <div className="flex sm:flex-row flex-col gap-2">
@@ -224,13 +336,74 @@ const runAutoEditor = async (command: string) => {
           onFileSelect={setSelectedFile} 
           onExportAsChange={setExportAs} 
           onExportPathChange={setExportPath} 
-          selectedFile={selectedFile} // Pass selectedFile to CardWithForm
+          selectedFile={selectedFile}
         />
         <CardWithArguments 
-          onExport={handleExport} // Pass the handleExport function to CardWithArguments
+          onExport={handleExport}
           onApply={handleApply}
+          onPreview={handlePreview} // Add the preview handler
         />
       </div>
+      
+      {/* Display preview statistics if available */}
+      {previewStats && (
+        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2">Preview Statistics</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {previewStats.originalDuration && (
+              <>
+                <div className="text-gray-600 dark:text-gray-400">Original Duration:</div>
+                <div>{previewStats.originalDuration}</div>
+              </>
+            )}
+            {previewStats.newDuration && (
+              <>
+                <div className="text-gray-600 dark:text-gray-400">New Duration:</div>
+                <div>{previewStats.newDuration}</div>
+              </>
+            )}
+            {previewStats.percentCut !== undefined && (
+              <>
+                <div className="text-gray-600 dark:text-gray-400">Percent Cut:</div>
+                <div>{previewStats.percentCut.toFixed(2)}%</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Display individual video statistics if available */}
+      {videoStats.length > 0 && (
+        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <h3 className="text-lg font-semibold mb-2">Processed Video Statistics</h3>
+          
+          {videoStats.map((stat, index) => (
+            <div key={index} className="mb-4 border-b border-gray-200 dark:border-gray-700 pb-4 last:border-0 last:pb-0">
+              <h4 className="font-medium text-base mb-2">{stat.name}</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {stat.originalDuration && (
+                  <>
+                    <div className="text-gray-600 dark:text-gray-400">Original Duration:</div>
+                    <div>{stat.originalDuration}</div>
+                  </>
+                )}
+                {stat.newDuration && (
+                  <>
+                    <div className="text-gray-600 dark:text-gray-400">New Duration:</div>
+                    <div>{stat.newDuration}</div>
+                  </>
+                )}
+                {stat.percentCut !== undefined && (
+                  <>
+                    <div className="text-gray-600 dark:text-gray-400">Percent Cut:</div>
+                    <div>{stat.percentCut.toFixed(2)}%</div>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
